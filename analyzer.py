@@ -27,7 +27,7 @@ def pdf_parser(fileName):
     my_keywords = []
     for word in keywords:
         if word in output:
-            my_keywords + word
+            my_keywords.append(word)
     print(my_keywords)
 
 #calls the pdfid CLI tool
