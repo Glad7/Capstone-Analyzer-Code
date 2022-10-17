@@ -1,6 +1,7 @@
 from pikepdf import Pdf
 import os
 import sys
+import re
 
 #Checks to see if there is an argument for a PDF file
 #TO DO: Check if it's an actual PDF file
@@ -14,12 +15,16 @@ def pageCount(pdf):
     pages = []
     for pageNum in range(len(pdf.pages)):
         pages.append(pageNum)
-    return pages    
+    return pages
 
-#TO DO: See what commands are useful for analyzing contents for malware
+#pdfid CLI tool to get info for signatures
+def pdfid(fileName):
+    pdfid_Stream = os.popen('python ./pdfid/pdfid.py ' + fileName, 'r')
+    output = pdfid_Stream.read().splitlines()
+    return output[2:-2]
+
 #An instance of /AA or /OpenAction in conjunction with /JavaScript is one indication (95%) of malware
 #calls the pdf-parser.py CLI tools with various options
-#calls the pdfid.py CLI tool
 class pdf_parser():
 
     # display stats for pdf document
@@ -36,13 +41,46 @@ class pdf_parser():
         output = stream.read()
         print(output)
 
-    # calls the pdfid CLI tool
-    # pdfid scans a file to look for certain PDF keywords
-    def pdfid(self, fileName):
-        pdfid_Stream = os.popen('python ./pdfid/pdfid.py ' + fileName, 'r')
-        pdfid_output = pdfid_Stream.read()
-        print(pdfid_output)
+    # checks to see if signature one is present
+    # returns true if it is (likely malware)
+    def signature_One_Two(self, fileName, pdf):
+        output = pdfid(fileName)
 
+        jsFlag = 0
+        jsObfuscatedFlag = 0
+        aaFlag = 0
+        oaFlag = 0
+        acroFlag = 0
+
+        for i in range(0, len(output)):
+            #print(output[i])
+            if "JavaScript" in output[i]:
+                if(output[i][-1] != "0"):
+                    if(output[i][-1] == ")"):
+                        jsObfuscatedFlag = 1
+                        print("Javascript found in file with " + output[i][-2] + " obfuscated instance(s) and " + output[i][-4] + " non-obfuscated instance(s)")
+                        return 2
+                    print("Javascript found in file with " + output[i][-1] + " instance(s)")
+                    jsFlag = 1
+            elif "/AA" in output[i]:
+                if(output[i][-1] != "0"):
+                    aaFlag = 1
+                    print("Automatic actions found in file with " + output[i][-1] + " instance(s)")
+            elif "/OpenAction" in output[i]:
+                if(output[i][-1] != "0"):
+                    oaFlag = 1
+                    print("Open actions found in file with " + output[i][-1] + " instance(s)")        
+            elif "/AcroForm" in output[i]:
+                if(output[i][-1] != "0"):
+                    acroFlag = 1
+                    print("Acro forms found in file with " + output[i][-1] + " instance(s)")
+
+        if jsFlag == 1 or jsObfuscatedFlag == 1:
+            if aaFlag == 1 or oaFlag == 1 or acroFlag == 1:
+                if len(pageCount(pdf)) == 1:
+                    print("Only one page in the PDF document")
+                    return 1
+        return 0
 
 
 def Main():
@@ -54,8 +92,11 @@ def Main():
 
     cmd = pdf_parser()
 
-    cmd.stats(file)
-    cmd.encoding(file)
-    cmd.pdfid(file)
+    #cmd.stats(file)
+    #cmd.encoding(file)
+    if cmd.signature_One_Two(file, pdf) == 1:
+        print("WARNING, MALWARE LIKELY EMBEDDED")
+    elif cmd.signature_One_Two(file, pdf) == 2:
+        print("WARNING, OBFUSCATED JAVASCRIPT DETECTED") 
 
 Main()
