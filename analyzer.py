@@ -1,7 +1,7 @@
 from pikepdf import Pdf
 import os
 import sys
-import re
+#import re
 
 #Checks to see if there is an argument for a PDF file
 #TO DO: Check if it's an actual PDF file
@@ -41,9 +41,29 @@ class pdf_parser():
         output = stream.read()
         print(output)
 
-    # checks to see if signature one is present
-    # returns true if it is (likely malware)
-    def signature_One_Two(self, fileName, pdf):
+    def jsSearch(self, fileName):
+        stream = os.popen('python pdf-parser.py -s /JavaScript ' + fileName, 'r')    
+        output = stream.read().splitlines()
+        for line in output:
+            if "obj" in line:
+                return line
+
+        return 0
+
+    def flateDecodeSearch(self, fileName, objNum):
+        stream = os.popen('python pdf-parser.py -o ' + objNum + ' ' + fileName)
+        output = stream.read().splitlines()
+        for line in output:
+            if "/FlateDecode" in line:
+                return True
+
+        return False            
+
+#the class that holds all of the signature detection functions
+class signatures():
+    
+    # checks to see if signature one or two is present
+    def sig_one_and_two(self, fileName, pdf):
         output = pdfid(fileName)
 
         jsFlag = 0
@@ -56,34 +76,54 @@ class pdf_parser():
             #print(output[i])
             if "JavaScript" in output[i]:
                 if(output[i][-1] != "0"):
+                    #immediatly returns for signature 2 is obfuscation is found
                     if(output[i][-1] == ")"):
                         jsObfuscatedFlag = 1
-                        print("Javascript found in file with " + output[i][-2] + " obfuscated instance(s) and " + output[i][-4] + " non-obfuscated instance(s)")
                         return 2
-                    print("Javascript found in file with " + output[i][-1] + " instance(s)")
                     jsFlag = 1
+
             elif "/AA" in output[i]:
                 if(output[i][-1] != "0"):
                     aaFlag = 1
-                    print("Automatic actions found in file with " + output[i][-1] + " instance(s)")
+
             elif "/OpenAction" in output[i]:
                 if(output[i][-1] != "0"):
                     oaFlag = 1
-                    print("Open actions found in file with " + output[i][-1] + " instance(s)")        
+
             elif "/AcroForm" in output[i]:
                 if(output[i][-1] != "0"):
                     acroFlag = 1
-                    print("Acro forms found in file with " + output[i][-1] + " instance(s)")
 
+        #final check for signature 1
         if jsFlag == 1 or jsObfuscatedFlag == 1:
             if aaFlag == 1 or oaFlag == 1 or acroFlag == 1:
                 if len(pageCount(pdf)) == 1:
-                    print("Only one page in the PDF document")
                     return 1
         return 0
 
+    def sig_three(self, fileName):
+        cmd = pdf_parser()
 
-def Main():
+        if cmd.jsSearch(fileName) != 0:
+            obj = cmd.jsSearch(fileName)
+        else:
+            return 0
+
+        objNum = ''
+
+        for i in range(4, len(obj)):
+            if obj[i].isnumeric():
+                objNum += obj[i]
+
+            if not obj[i].isnumeric():
+                break
+
+        if cmd.flateDecodeSearch(fileName, objNum):
+            return True
+
+        return False                
+
+def main():
     fileCheck()
     pdf = Pdf.open(sys.argv[1])
     pages = pageCount(pdf)
@@ -91,12 +131,18 @@ def Main():
     file = (sys.argv[1])
 
     cmd = pdf_parser()
+    signature = signatures()
 
     #cmd.stats(file)
     #cmd.encoding(file)
-    if cmd.signature_One_Two(file, pdf) == 1:
-        print("WARNING, MALWARE LIKELY EMBEDDED")
-    elif cmd.signature_One_Two(file, pdf) == 2:
-        print("WARNING, OBFUSCATED JAVASCRIPT DETECTED") 
+    if signature.sig_one_and_two(file, pdf) == 1:
+        print("WARNING, SIGNATURE 1 TRIGGERED")
+    elif signature.sig_one_and_two(file, pdf) == 2:
+        print("WARNING, SIGNATURE 2 TRIGGERED") 
+    elif signature.sig_three(file):
+        print('WARNING, SIGNATURE 3 TRIGGERED')
+    else:
+        print('The PDF file is safe to open')
 
-Main()
+if __name__ == "__main__":
+    main()
