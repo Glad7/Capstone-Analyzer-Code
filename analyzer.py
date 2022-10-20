@@ -1,7 +1,7 @@
 from pikepdf import Pdf
 import os
 import sys
-import re
+#import re
 
 #Checks to see if there is an argument for a PDF file
 #TO DO: Check if it's an actual PDF file
@@ -41,9 +41,12 @@ class pdf_parser():
         output = stream.read()
         print(output)
 
-    # checks to see if signature one is present
-    # returns true if it is (likely malware)
-    def signature_One_Two(self, fileName, pdf):
+    
+#the class that holds all of the signature detection functions
+class signatures():
+    
+    # checks to see if signature one or two is present
+    def one_and_two(self, fileName, pdf):
         output = pdfid(fileName)
 
         jsFlag = 0
@@ -82,7 +85,6 @@ class pdf_parser():
                     return 1
         return 0
 
-
 def Main():
     fileCheck()
     pdf = Pdf.open(sys.argv[1])
@@ -91,12 +93,13 @@ def Main():
     file = (sys.argv[1])
 
     cmd = pdf_parser()
+    signature = signatures()
 
     #cmd.stats(file)
     #cmd.encoding(file)
-    if cmd.signature_One_Two(file, pdf) == 1:
+    if signature.one_and_two(file, pdf) == 1:
         print("WARNING, MALWARE LIKELY EMBEDDED")
-    elif cmd.signature_One_Two(file, pdf) == 2:
+    elif signature.one_and_two(file, pdf) == 2:
         print("WARNING, OBFUSCATED JAVASCRIPT DETECTED") 
 
 Main()
