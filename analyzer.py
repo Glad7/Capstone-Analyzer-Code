@@ -62,6 +62,74 @@ class pdf_parser():
 #the class that holds all of the signature detection functions
 class signatures():
     
+    # Finds obfuscated JS code and then deobfuscates it by calling spider-monkey (/js)
+    # Deobfuscated JS STILL NEEDS TO BE PARSED FOR IDENTIFIERS which would satisfy signatures #6-9.
+    def deobfuscateJS(self, fileName):
+        stream = os.popen('python pdf-parser.py -s javascript ' + fileName, 'r')       
+        output = stream.read()
+        stream.close()
+        output = (output.split('obj'))  
+        # Remove the warning message
+        check_string = 'This program has not been tested with this version of Python'
+        result = any(check_string in sub for sub in output)
+        
+        if result == True:
+            output = deque(output)
+            output.popleft()
+            output = list(output) # Even though output is a list, it outputs like a normal string not a list
+        
+        
+        newStr = ''.join(output) #Re-construct the normal looking output.
+        newStr = newStr.split(' ')  #Parse the normal looking output.
+        objectIndex = newStr.index('/JS') #Find the position of the string /JS.
+        objectIndex = newStr[objectIndex+1] #Find the object number /JS is referencing.
+        objectIndex = str(objectIndex)  #Turn the object number into a string.
+        runCmd = f'python pdf-parser.py -o {objectIndex} {fileName}' #Create the command that will be ran.
+    
+        #Run the command
+        runCmd = os.popen(runCmd, 'r')
+        stream = runCmd.read()
+
+        # Remove the warning message
+        # Calling this the second time doesn't remove the warning message for unknown reason
+
+        #check_string = 'This program has not been tested with this version of Python'
+        #result = any(check_string in sub for sub in stream)
+        
+        #if result == True:
+        #    stream = deque(stream)
+        #    stream.popleft()
+        #    stream = list(stream)
+
+        #Search this new output for any encodings.
+        newStr = stream.split(' ')  #Parse the normal looking output.
+        
+        # If /Filter exists then run the decode option
+        if newStr.index('/Filter') != False:
+            runCmd = f'python pdf-parser.py -o {objectIndex} -f {fileName}'
+            runCmd = os.popen(runCmd, 'r') 
+            stream = runCmd.read()
+            print (stream)
+        
+        ##
+        ## Still need to code to parse for identifiers.
+        ##
+
+        retcode = os.popen(f'python pdf-parser.py -o {objectIndex} -f -d five.js {fileName}') 
+        stream = retcode.read() #os.popen will error if the stream is not read().
+        
+        # Don't add 'r', or 'w' in os.popen if we don't intend to do anything with the stream.
+        # A.k.a in situations where we only want to call the command to open a file.
+        # Adding 'r' or 'w' in this situation breaks the pipe for some reason.
+        spiderMonkey = str('./js')    # Path to where spidermonkey program is located. 
+        retcode = os.popen(f'{spiderMonkey} five.js')
+        stream = retcode.read()
+
+        # Look at the deobfuscated javascript.
+        # Spidermonkey will always output to a file called eval.001.log.
+        deobfuscatedJs = open('eval.001.log', 'r')
+        print(deobfuscatedJs.read())
+    
     # checks to see if signature one or two is present
     def sig_one_and_two(self, fileName, pdf):
         output = pdfid(fileName)
