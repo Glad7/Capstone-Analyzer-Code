@@ -1,5 +1,6 @@
 from pikepdf import Pdf
 import os
+from collections import deque #supports rotate()
 import sys
 #import re
 
